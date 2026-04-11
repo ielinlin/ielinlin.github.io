@@ -1,0 +1,41 @@
+name: Sync Notion to Blog
+
+on:
+  schedule:
+    - cron: "0 22 * * *"   # 每天 UTC 22:00 = 北京时间次日 06:00
+  workflow_dispatch:
+
+jobs:
+  sync:
+    name: Sync from Notion
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests
+      
+      - name: Run sync script
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+        run: |
+          python sync_notion.py
+      
+      - name: Commit and push changes
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git diff --staged --quiet || git commit -m "sync: update from Notion [skip ci]"
+          git push
