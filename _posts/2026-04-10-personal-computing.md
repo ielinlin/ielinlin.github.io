@@ -3,12 +3,12 @@ layout: post
 title: 《Personal Computing》
 date: 2026-04-10 12:00:00 +0800
 categories: ['笔记']
-tags: ['dynamicland', '读书']
+tags: ['dynamicland', '读书', 'Alan Kay']
 permalink: /posts/personal-computing/
 author_profile: true
 ---
 
-Alan kay 《Personal Computing》 1975.  
+Alan kay 《Personal Computing》G 1975.  
 
 原文：[https://worrydream.com/refs/Kay_1975_-_Personal_Computing.pdf](https://worrydream.com/refs/Kay_1975_-_Personal_Computing.pdf)
 
