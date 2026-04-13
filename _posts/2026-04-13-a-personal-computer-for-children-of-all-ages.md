@@ -97,7 +97,7 @@ Alan Kay 《A Personal Computer for Children of All Ages》1972.
 
 
 
-课后作业：了解 Piaget 作品
+了解 Piaget 
 
 幼儿的知识，不是通过固定的、标准化的规则或公理来构建的，而是通过一系列临时性的操作模型（如算法和策略）保留下来。这些模型并不需要在逻辑上彼此一致，而是根据经验和解决问题的需求不断调整和变化。
 
