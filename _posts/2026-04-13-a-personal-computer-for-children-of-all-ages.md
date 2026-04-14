@@ -1,14 +1,15 @@
 ---
 layout: post
-title: 《
+title: 《A Personal Computer for Children of All Ages》
 date: 2026-04-13 12:00:00 +0800
 categories: ['笔记']
 tags: ['Alan Kay', 'dynamicland']
-permalink: /posts/20260413124626/
+permalink: /posts/a-personal-computer-for-children-of-all-ages/
 author_profile: true
 ---
 
-Alan Kay 《[A Personal Computer for Children of All Ages](https://link.zhihu.com/?target=https%3A%2F%2Fmprove.de%2Fdiplom%2Fgui%2Fkay72.html)》《一款适合各年龄儿童的个人电脑》  1972
+Alan Kay 《A Personal Computer for Children of All Ages》1972.
+一款适合各年龄儿童的个人电脑  
 
 原文： [https://mprove.de/visionreality/media/kay72.html](https://mprove.de/visionreality/media/kay72.html)
 
@@ -96,7 +97,7 @@ Alan Kay 《[A Personal Computer for Children of All Ages](https://link.zhihu.co
 
 
 
-了解 Piaget 作品
+了解 Piaget 
 
 幼儿的知识，不是通过固定的、标准化的规则或公理来构建的，而是通过一系列临时性的操作模型（如算法和策略）保留下来。这些模型并不需要在逻辑上彼此一致，而是根据经验和解决问题的需求不断调整和变化。
 
