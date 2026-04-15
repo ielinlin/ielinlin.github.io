@@ -1,10 +1,10 @@
 ---
 layout: post
-title: 《 
+title: 《 Afterword: What Is A Dynabook?》
 date: 2026-04-15 12:00:00 +0800
 categories: ['笔记']
 tags: ['dynamicland', 'Alan Kay']
-permalink: /posts/20260415015856/
+permalink: /posts/afterword-what-is-a-dynabook/
 author_profile: true
 ---
 
