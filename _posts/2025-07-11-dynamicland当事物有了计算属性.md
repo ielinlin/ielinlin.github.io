@@ -20,7 +20,7 @@ author_profile: true
 
 **Real world（真实世界）**：一切都根植于现实物理环境中，而非虚拟世界。这与元宇宙、VR、AR有本质区别——计算成为现实世界的一部分，像“光、热、密度”一样自然存在。
 
-![](/assets/images/posts/f558ca11_7333ea5b.png)
+![](/assets/images/posts/f558ca11_7333ea5b.webp)
 
 **如果真实世界拥有计算属性……**
 
