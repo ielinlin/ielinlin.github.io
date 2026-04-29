@@ -25,21 +25,14 @@ def rich_text_to_markdown(rich_text_array):
     result = []
     for segment in rich_text_array:
         text = segment.get('plain_text', '')
-        if not text:
-            continue
-        annotations = segment.get('annotations', {})
-        if annotations.get('bold'):
-            text = f"**{text}**"
-        if annotations.get('italic'):
-            text = f"*{text}*"
-        if annotations.get('code'):
-            text = f"`{text}`"
-        if annotations.get('strikethrough'):
-            text = f"~~{text}~~"
-        if annotations.get('underline'):
-            text = f"<u>{text}</u>"
-        if segment.get('href'):
-            text = f"[{text}]({segment['href']})"
+        if not text: continue
+        ann = segment.get('annotations', {})
+        if ann.get('bold'): text = f"**{text}**"
+        if ann.get('italic'): text = f"*{text}*"
+        if ann.get('code'): text = f"`{text}`"
+        if ann.get('strikethrough'): text = f"~~{text}~~"
+        if ann.get('underline'): text = f"<u>{text}</u>"
+        if segment.get('href'): text = f"[{text}]({segment['href']})"
         result.append(text)
     return ''.join(result)
 
@@ -53,10 +46,8 @@ def clean_slug(s):
 
 
 def compute_hash(text):
-    """用于判断内容是否真正变化（忽略date行）"""
     lines = [line for line in text.split('\n') if not line.strip().startswith('date:')]
-    clean_text = '\n'.join(lines)
-    return hashlib.md5(clean_text.encode('utf-8')).hexdigest()
+    return hashlib.md5('\n'.join(lines).encode('utf-8')).hexdigest()
 
 
 # ====================== Notion API ======================
@@ -78,11 +69,9 @@ def fetch_all_children(block_id):
     while True:
         children, next_cursor = get_page_content(block_id, start_cursor)
         all_blocks.extend(children)
-        if not next_cursor:
-            break
+        if not next_cursor: break
         start_cursor = next_cursor
         time.sleep(0.25)
-
     for block in all_blocks:
         if block.get('has_children', False):
             block['children'] = fetch_all_children(block['id'])
@@ -99,31 +88,26 @@ def download_image(img_url, page_id, block_id):
     os.makedirs(images_dir, exist_ok=True)
     local_path = os.path.join(images_dir, filename)
 
-    # 已存在就跳过
     if os.path.exists(local_path) and os.path.getsize(local_path) > 1024:
-        print(f"  ⏭️  图片已存在，跳过: {filename}")
+        print(f"  ⏭️  图片已存在，跳过")
         return f"/assets/images/posts/{filename}"
 
     try:
-        print(f"  → 下载图片: {filename}")
-        response = requests.get(img_url, stream=True, timeout=30)
-        if response.status_code == 200:
+        print(f"  → 下载图片")
+        r = requests.get(img_url, stream=True, timeout=30)
+        if r.status_code == 200:
             with open(local_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
+                for chunk in r.iter_content(8192):
                     f.write(chunk)
             print(f"  ✅ 下载完成")
             return f"/assets/images/posts/{filename}"
-    except Exception as e:
-        print(f"  ⚠️ 下载失败: {e}")
+    except:
+        pass
     return None
 
 
-# ====================== 块转 Markdown ======================
 def convert_children(children, page_id, indent_level=0):
-    md = []
-    for child in children:
-        md.append(block_to_markdown(child, page_id, indent_level + 1))
-    return ''.join(md)
+    return ''.join(block_to_markdown(child, page_id, indent_level + 1) for child in children)
 
 
 def block_to_markdown(block, page_id, indent_level=0):
@@ -134,16 +118,12 @@ def block_to_markdown(block, page_id, indent_level=0):
 
     if block_type == 'paragraph':
         md_text = rich_text_to_markdown(rich_text)
-        if not md_text.strip():
-            return '\n'
-        return indent + md_text + '\n\n'
+        return indent + md_text + '\n\n' if md_text.strip() else '\n'
 
     elif block_type in ['heading_1', 'heading_2', 'heading_3']:
         level = block_type[-1]
         md_text = rich_text_to_markdown(rich_text)
-        if not md_text.strip():
-            return ''
-        return indent + '#' * int(level) + ' ' + md_text + '\n\n'
+        return indent + '#' * int(level) + ' ' + md_text + '\n\n' if md_text.strip() else ''
 
     elif block_type == 'bulleted_list_item':
         line = indent + '- ' + rich_text_to_markdown(rich_text) + '\n'
@@ -191,14 +171,11 @@ def block_to_markdown(block, page_id, indent_level=0):
     elif block_type == 'image':
         image_data = block.get('image', {})
         img_url = image_data.get('external', {}).get('url') or image_data.get('file', {}).get('url')
-        if not img_url:
-            return ''
+        if not img_url: return ''
         caption_text = rich_text_to_markdown(image_data.get('caption', []))
         block_id = block.get('id', '')
         img_ref = download_image(img_url, page_id, block_id)
-        if img_ref:
-            return indent + f"![{caption_text}]({img_ref})\n\n"
-        return ''
+        return indent + f"![{caption_text}]({img_ref})\n\n" if img_ref else ''
 
     elif block_type == 'table':
         return indent + "*(表格暂不支持，请查看 Notion 原文)*\n\n"
@@ -215,7 +192,7 @@ def main():
 
     resp = requests.post(f'https://api.notion.com/v1/databases/{DATABASE_ID}/query', headers=headers)
     if resp.status_code != 200:
-        print("查询数据库失败")
+        print("查询失败")
         return
 
     pages = resp.json().get('results', [])
@@ -227,39 +204,32 @@ def main():
         page_id = page['id']
         props = page.get('properties', {})
 
-        # 标题
         title = "Untitled"
         for v in props.values():
-            if v.get('type') == 'title':
-                title_items = v.get('title', [])
-                if title_items:
-                    title = title_items[0].get('plain_text', 'Untitled')
+            if v.get('type') == 'title' and v.get('title'):
+                title = v['title'][0].get('plain_text', 'Untitled')
                 break
 
         if props.get('Status', {}).get('select', {}).get('name') != 'Published':
             continue
 
-        # 使用 Notion 的 Date 字段
+        # 使用 Notion Date 字段（重点修复）
         date_prop = props.get('Date', {}).get('date', {})
         if date_prop and date_prop.get('start'):
-            date_str = date_prop['start'].replace('T', ' ').split('.')[0] + " +0800"
-            file_date_part = date_prop['start'][:10]
+            start = date_prop['start']
+            date_str = start.replace('T', ' ').split('.')[0] + " +0800"
+            file_date_part = start[:10]                    # ← 关键：直接取 YYYY-MM-DD
         else:
             date_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S +0800')
             file_date_part = datetime.now().strftime('%Y-%m-%d')
 
-        # Slug
-        slug_prop = props.get('Slug', {}).get('rich_text', [])
-        raw_slug = slug_prop[0].get('plain_text', '') if slug_prop else ''
-        slug = clean_slug(raw_slug) if raw_slug else clean_slug(title)
+        slug = clean_slug(props.get('Slug', {}).get('rich_text', [{}])[0].get('plain_text', '') or title)
 
-        print(f"Fetching: {title}")
+        print(f"Fetching: {title}  (Date: {file_date_part})")
 
-        # 获取并转换内容
         blocks = fetch_all_children(page_id)
-        markdown_body = ''.join(block_to_markdown(block, page_id) for block in blocks)
+        markdown_body = ''.join(block_to_markdown(b, page_id) for b in blocks)
 
-        # 构建完整内容
         full_content = f"""---
 layout: post
 title: {title}
@@ -276,13 +246,12 @@ author_profile: true
         filename = f"{file_date_part}-{slug}.md"
         filepath = os.path.join(OUTPUT_DIR, filename)
 
-        # 判断是否需要更新
         need_write = True
         if os.path.exists(filepath):
             with open(filepath, 'r', encoding='utf-8') as f:
-                existing = f.read()
-            if compute_hash(existing) == compute_hash(full_content):
-                print(f"  ✓ 内容未变化，跳过写入")
+                old = f.read()
+            if compute_hash(old) == compute_hash(full_content):
+                print(f"  ✓ 内容未变化，跳过")
                 need_write = False
 
         if need_write:
@@ -300,4 +269,16 @@ author_profile: true
             os.remove(os.path.join(OUTPUT_DIR, fname))
             print(f"🗑️ 删除: {fname}")
 
-    print
+    print("\n🎉 同步完成！")
+
+
+def get_notion_tags(props):
+    return [tag['name'] for tag in props.get('Tags', {}).get('multi_select', [])]
+
+def get_notion_categories(props):
+    cat = props.get('Categories', {}).get('select', {})
+    return [cat.get('name')] if cat and cat.get('name') else ["笔记"]
+
+
+if __name__ == "__main__":
+    main()
