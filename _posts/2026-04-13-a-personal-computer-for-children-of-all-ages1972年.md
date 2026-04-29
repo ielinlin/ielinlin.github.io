@@ -105,3 +105,4 @@ Alan Kay 《A Personal Computer for Children of All Ages》1972.
 
 思维的本质是非语言的和形象的，即人类的思维和认知能力并不完全依赖语言，而是通过直观的图像和实际操作来理解世界。
 
+
