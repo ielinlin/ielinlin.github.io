@@ -64,9 +64,12 @@ def get_notion_categories(props):
     return ["笔记"]
 
 
-def compute_content_hash(content: str) -> str:
-    """计算内容哈希，用于判断是否真正需要更新文件"""
-    return hashlib.sha256(content.encode('utf-8')).hexdigest()
+def compute_stable_hash(content: str) -> str:
+    """稳定的哈希：移除 date 行后再计算，避免时间戳干扰"""
+    lines = content.split('\n')
+    filtered = [line for line in lines if not line.strip().startswith('date:')]
+    stable_content = '\n'.join(filtered)
+    return hashlib.sha256(stable_content.encode('utf-8')).hexdigest()
 
 
 # ---------- Notion API ----------
@@ -80,33 +83,28 @@ def get_page_content(block_id, start_cursor=None):
     if response.status_code != 200:
         print(f"  Error getting children for {block_id}: {response.status_code}")
         return [], None
-
     data = response.json()
     return data.get('results', []), data.get('next_cursor')
 
 
 def fetch_all_children(block_id):
-    """完整分页 + 递归获取所有 blocks"""
     all_blocks = []
     start_cursor = None
-
     while True:
         children, next_cursor = get_page_content(block_id, start_cursor)
         all_blocks.extend(children)
         if not next_cursor:
             break
         start_cursor = next_cursor
-        time.sleep(0.25)  # 防止 rate limit
+        time.sleep(0.25)
 
-    # 递归处理子块
     for block in all_blocks:
         if block.get('has_children', False):
             block['children'] = fetch_all_children(block['id'])
-
     return all_blocks
 
 
-# ---------- 图片下载（优化版） ----------
+# ---------- 图片下载 ----------
 def download_image(img_url, page_id, block_id, caption_text):
     parsed_url = urlparse(img_url)
     ext = os.path.splitext(os.path.basename(unquote(parsed_url.path)))[1].lower() or '.jpg'
@@ -119,9 +117,8 @@ def download_image(img_url, page_id, block_id, caption_text):
     os.makedirs(images_dir, exist_ok=True)
     local_path = os.path.join(images_dir, final_filename)
 
-    # 如果文件已存在且大小正常，则跳过
     if os.path.exists(local_path) and os.path.getsize(local_path) > 1024:
-        print(f"  ⏭️  图片已存在，跳过下载: {final_filename}")
+        print(f"  ⏭️  图片已存在，跳过: {final_filename}")
         return f"/assets/images/posts/{final_filename}"
 
     try:
@@ -142,12 +139,9 @@ def download_image(img_url, page_id, block_id, caption_text):
             with open(local_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-
-            print(f"  ✅ 下载完成: {final_filename} ({os.path.getsize(local_path)//1024} KB)")
+            print(f"  ✅ 下载完成: {final_filename}")
             return f"/assets/images/posts/{final_filename}"
-        else:
-            print(f"  ⚠️ 下载失败 ({response.status_code})")
-            return None
+        return None
     except Exception as e:
         print(f"  ⚠️ 下载异常: {e}")
         return None
@@ -247,15 +241,13 @@ def block_to_markdown(block, page_id, indent_level=0):
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # 查询数据库
     resp = requests.post(f'https://api.notion.com/v1/databases/{DATABASE_ID}/query', headers=headers)
     if resp.status_code != 200:
         print(f"查询数据库失败: {resp.status_code}")
-        print(resp.text)
         return
 
     pages = resp.json().get('results', [])
-    print(f"Found {len(pages)} published pages in database.\n")
+    print(f"Found {len(pages)} published pages.\n")
 
     valid_filenames = set()
 
@@ -277,14 +269,10 @@ def main():
         if status != 'Published':
             continue
 
-        # 日期处理
-        date_prop = props.get('Date', {}).get('date', {})
-        if date_prop and date_prop.get('start'):
-            date_str = date_prop['start']
-            if 'T' not in date_str:
-                date_str = f"{date_str} 12:00:00 +0800"
-            else:
-                date_str = date_str.replace('T', ' ').split('.')[0] + " +0800"
+        # 使用 Notion 页面的最后编辑时间作为 date（关键修复）
+        last_edited_time = page.get('last_edited_time', '')
+        if last_edited_time:
+            date_str = last_edited_time.replace('T', ' ').split('.')[0] + " +0800"
         else:
             date_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S +0800')
 
@@ -300,13 +288,11 @@ def main():
 
         print(f"Fetching: {title}")
 
-        # 获取内容
         blocks = fetch_all_children(page_id)
-        content_blocks = [block_to_markdown(block, page_id) for block in blocks if block_to_markdown(block, page_id)]
-
+        content_blocks = [block_to_markdown(block, page_id) for block in blocks]
         markdown_body = ''.join(content_blocks)
 
-        # 构建完整文件内容
+        # 构建完整内容
         full_content = f"""---
 layout: post
 title: {title}
@@ -324,12 +310,12 @@ author_profile: true
         filename = f"{file_date_part}-{slug}.md"
         filepath = os.path.join(OUTPUT_DIR, filename)
 
-        # ==================== 核心优化：判断内容是否变化 ====================
+        # 判断是否需要写入（使用稳定哈希，忽略 date 行）
         need_write = True
         if os.path.exists(filepath):
             with open(filepath, 'r', encoding='utf-8') as f:
                 existing = f.read()
-            if compute_content_hash(existing) == compute_content_hash(full_content):
+            if compute_stable_hash(existing) == compute_stable_hash(full_content):
                 print(f"  ✓ 内容未变化，跳过写入: {filename}")
                 need_write = False
 
@@ -342,7 +328,7 @@ author_profile: true
 
         valid_filenames.add(filename)
 
-    # 删除本地已失效的文章
+    # 删除失效文件
     for fname in os.listdir(OUTPUT_DIR):
         if fname.endswith('.md') and fname not in valid_filenames:
             os.remove(os.path.join(OUTPUT_DIR, fname))
