@@ -18,7 +18,7 @@ headers = {
     'Notion-Version': '2022-06-28'
 }
 
-# ---------- 工具函数 ----------
+# ====================== 工具函数 ======================
 def rich_text_to_markdown(rich_text_array):
     if not rich_text_array:
         return ''
@@ -46,42 +46,27 @@ def rich_text_to_markdown(rich_text_array):
 
 def clean_slug(s):
     s = s.lower().strip()
-    s = re.sub(r'\s+', '-', s)
+    s = re.sub(r'[\s｜：:｜|•·]', '-', s)
     s = re.sub(r'[^\w\-]', '', s)
     s = re.sub(r'-+', '-', s)
-    return s.strip('-')
+    return s.strip('-') or 'untitled'
 
 
-def get_notion_tags(props):
-    tags_prop = props.get('Tags', {}).get('multi_select', [])
-    return [tag['name'] for tag in tags_prop]
+def compute_hash(text):
+    """用于判断内容是否真正变化（忽略date行）"""
+    lines = [line for line in text.split('\n') if not line.strip().startswith('date:')]
+    clean_text = '\n'.join(lines)
+    return hashlib.md5(clean_text.encode('utf-8')).hexdigest()
 
 
-def get_notion_categories(props):
-    categories_prop = props.get('Categories', {}).get('select', {})
-    if categories_prop and categories_prop.get('name'):
-        return [categories_prop['name']]
-    return ["笔记"]
-
-
-def compute_stable_hash(content: str) -> str:
-    """稳定的哈希：移除 date 行后再计算，避免时间戳干扰"""
-    lines = content.split('\n')
-    filtered = [line for line in lines if not line.strip().startswith('date:')]
-    stable_content = '\n'.join(filtered)
-    return hashlib.sha256(stable_content.encode('utf-8')).hexdigest()
-
-
-# ---------- Notion API ----------
+# ====================== Notion API ======================
 def get_page_content(block_id, start_cursor=None):
     url = f'https://api.notion.com/v1/blocks/{block_id}/children'
     params = {'page_size': 100}
     if start_cursor:
         params['start_cursor'] = start_cursor
-
     response = requests.get(url, headers=headers, params=params)
     if response.status_code != 200:
-        print(f"  Error getting children for {block_id}: {response.status_code}")
         return [], None
     data = response.json()
     return data.get('results', []), data.get('next_cursor')
@@ -104,49 +89,36 @@ def fetch_all_children(block_id):
     return all_blocks
 
 
-# ---------- 图片下载 ----------
-def download_image(img_url, page_id, block_id, caption_text):
-    parsed_url = urlparse(img_url)
-    ext = os.path.splitext(os.path.basename(unquote(parsed_url.path)))[1].lower() or '.jpg'
-
+# ====================== 图片下载 ======================
+def download_image(img_url, page_id, block_id):
     page_short = page_id.replace('-', '')[-8:]
     block_short = block_id.replace('-', '')[-8:]
-    final_filename = f"{page_short}_{block_short}{ext}"
+    filename = f"{page_short}_{block_short}.jpg"
 
     images_dir = 'assets/images/posts'
     os.makedirs(images_dir, exist_ok=True)
-    local_path = os.path.join(images_dir, final_filename)
+    local_path = os.path.join(images_dir, filename)
 
+    # 已存在就跳过
     if os.path.exists(local_path) and os.path.getsize(local_path) > 1024:
-        print(f"  ⏭️  图片已存在，跳过: {final_filename}")
-        return f"/assets/images/posts/{final_filename}"
+        print(f"  ⏭️  图片已存在，跳过: {filename}")
+        return f"/assets/images/posts/{filename}"
 
     try:
-        print(f"  → 下载图片: {final_filename}")
+        print(f"  → 下载图片: {filename}")
         response = requests.get(img_url, stream=True, timeout=30)
         if response.status_code == 200:
-            content_type = response.headers.get('content-type', '').lower()
-            if 'webp' in content_type:
-                ext = '.webp'
-            elif 'png' in content_type:
-                ext = '.png'
-            elif 'gif' in content_type:
-                ext = '.gif'
-
-            final_filename = f"{page_short}_{block_short}{ext}"
-            local_path = os.path.join(images_dir, final_filename)
-
             with open(local_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-            print(f"  ✅ 下载完成: {final_filename}")
-            return f"/assets/images/posts/{final_filename}"
-        return None
+            print(f"  ✅ 下载完成")
+            return f"/assets/images/posts/{filename}"
     except Exception as e:
-        print(f"  ⚠️ 下载异常: {e}")
-        return None
+        print(f"  ⚠️ 下载失败: {e}")
+    return None
 
 
+# ====================== 块转 Markdown ======================
 def convert_children(children, page_id, indent_level=0):
     md = []
     for child in children:
@@ -223,7 +195,7 @@ def block_to_markdown(block, page_id, indent_level=0):
             return ''
         caption_text = rich_text_to_markdown(image_data.get('caption', []))
         block_id = block.get('id', '')
-        img_ref = download_image(img_url, page_id, block_id, caption_text)
+        img_ref = download_image(img_url, page_id, block_id)
         if img_ref:
             return indent + f"![{caption_text}]({img_ref})\n\n"
         return ''
@@ -237,13 +209,13 @@ def block_to_markdown(block, page_id, indent_level=0):
         return ''
 
 
-# ---------- 主流程 ----------
+# ====================== 主流程 ======================
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     resp = requests.post(f'https://api.notion.com/v1/databases/{DATABASE_ID}/query', headers=headers)
     if resp.status_code != 200:
-        print(f"查询数据库失败: {resp.status_code}")
+        print("查询数据库失败")
         return
 
     pages = resp.json().get('results', [])
@@ -255,50 +227,45 @@ def main():
         page_id = page['id']
         props = page.get('properties', {})
 
-        # 获取标题
+        # 标题
         title = "Untitled"
-        for value in props.values():
-            if value.get('type') == 'title':
-                title_items = value.get('title', [])
+        for v in props.values():
+            if v.get('type') == 'title':
+                title_items = v.get('title', [])
                 if title_items:
                     title = title_items[0].get('plain_text', 'Untitled')
                 break
 
-        # 状态检查
-        status = props.get('Status', {}).get('select', {}).get('name')
-        if status != 'Published':
+        if props.get('Status', {}).get('select', {}).get('name') != 'Published':
             continue
 
-        # 使用 Notion 页面的最后编辑时间作为 date（关键修复）
-        last_edited_time = page.get('last_edited_time', '')
-        if last_edited_time:
-            date_str = last_edited_time.replace('T', ' ').split('.')[0] + " +0800"
+        # 使用 Notion 的 Date 字段
+        date_prop = props.get('Date', {}).get('date', {})
+        if date_prop and date_prop.get('start'):
+            date_str = date_prop['start'].replace('T', ' ').split('.')[0] + " +0800"
+            file_date_part = date_prop['start'][:10]
         else:
             date_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S +0800')
+            file_date_part = datetime.now().strftime('%Y-%m-%d')
 
         # Slug
         slug_prop = props.get('Slug', {}).get('rich_text', [])
         raw_slug = slug_prop[0].get('plain_text', '') if slug_prop else ''
         slug = clean_slug(raw_slug) if raw_slug else clean_slug(title)
-        if not slug:
-            slug = datetime.now().strftime('%Y%m%d%H%M%S')
-
-        tags = get_notion_tags(props) or ["笔记"]
-        categories = get_notion_categories(props)
 
         print(f"Fetching: {title}")
 
+        # 获取并转换内容
         blocks = fetch_all_children(page_id)
-        content_blocks = [block_to_markdown(block, page_id) for block in blocks]
-        markdown_body = ''.join(content_blocks)
+        markdown_body = ''.join(block_to_markdown(block, page_id) for block in blocks)
 
         # 构建完整内容
         full_content = f"""---
 layout: post
 title: {title}
 date: {date_str}
-categories: {categories}
-tags: {tags}
+categories: {get_notion_categories(props)}
+tags: {get_notion_tags(props)}
 permalink: /posts/{slug}/
 author_profile: true
 ---
@@ -306,17 +273,16 @@ author_profile: true
 {markdown_body}
 """
 
-        file_date_part = date_str.split()[0]
         filename = f"{file_date_part}-{slug}.md"
         filepath = os.path.join(OUTPUT_DIR, filename)
 
-        # 判断是否需要写入（使用稳定哈希，忽略 date 行）
+        # 判断是否需要更新
         need_write = True
         if os.path.exists(filepath):
             with open(filepath, 'r', encoding='utf-8') as f:
                 existing = f.read()
-            if compute_stable_hash(existing) == compute_stable_hash(full_content):
-                print(f"  ✓ 内容未变化，跳过写入: {filename}")
+            if compute_hash(existing) == compute_hash(full_content):
+                print(f"  ✓ 内容未变化，跳过写入")
                 need_write = False
 
         if need_write:
@@ -332,10 +298,6 @@ author_profile: true
     for fname in os.listdir(OUTPUT_DIR):
         if fname.endswith('.md') and fname not in valid_filenames:
             os.remove(os.path.join(OUTPUT_DIR, fname))
-            print(f"🗑️ 删除失效文章：{fname}")
+            print(f"🗑️ 删除: {fname}")
 
-    print("\n🎉 Notion 同步完成！")
-
-
-if __name__ == "__main__":
-    main()
+    print
