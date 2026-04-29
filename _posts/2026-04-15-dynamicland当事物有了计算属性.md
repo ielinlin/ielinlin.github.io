@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Dynamicland：当事物有了计算属性
-date: 2025-07-11 12:00:00 +0800
+date: 2026-04-15 07:17:00 +0800
 categories: ['个人计算']
 tags: ['个人计算']
 permalink: /posts/dynamicland当事物有了计算属性/
