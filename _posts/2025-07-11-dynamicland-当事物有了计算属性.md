@@ -1,10 +1,10 @@
 ---
 layout: post
 title: Dynamicland：当事物有了计算属性
-date: 2026-04-15 07:17:00 +0800
+date: 2025-07-11 +0800
 categories: ['个人计算']
 tags: ['个人计算']
-permalink: /posts/dynamicland当事物有了计算属性/
+permalink: /posts/dynamicland-当事物有了计算属性/
 author_profile: true
 ---
 
@@ -20,7 +20,7 @@ author_profile: true
 
 **Real world（真实世界）**：一切都根植于现实物理环境中，而非虚拟世界。这与元宇宙、VR、AR有本质区别——计算成为现实世界的一部分，像“光、热、密度”一样自然存在。
 
-![](/assets/images/posts/f558ca11_7333ea5b.webp)
+![](/assets/images/posts/f558ca11_7333ea5b.jpg)
 
 **如果真实世界拥有计算属性……**
 

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: 《Personal Computing》1975年
-date: 2026-04-15 07:02:00 +0800
+date: 2026-04-10 +0800
 categories: ['个人计算']
 tags: ['Alan Kay', '个人计算', '读书']
 permalink: /posts/personal-computing1975年/

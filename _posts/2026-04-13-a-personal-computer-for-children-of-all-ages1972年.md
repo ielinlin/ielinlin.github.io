@@ -1,7 +1,7 @@
 ---
 layout: post
 title: 《A Personal Computer for Children of All Ages》1972年
-date: 2026-04-15 07:02:00 +0800
+date: 2026-04-13 +0800
 categories: ['个人计算']
 tags: ['Alan Kay', '读书', '个人计算']
 permalink: /posts/a-personal-computer-for-children-of-all-ages1972年/
