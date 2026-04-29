@@ -45,11 +45,6 @@ def clean_slug(s):
     return s.strip('-') or 'untitled'
 
 
-def compute_hash(text):
-    lines = [line for line in text.split('\n') if not line.strip().startswith('date:')]
-    return hashlib.md5('\n'.join(lines).encode('utf-8')).hexdigest()
-
-
 # ====================== Notion API ======================
 def get_page_content(block_id, start_cursor=None):
     url = f'https://api.notion.com/v1/blocks/{block_id}/children'
@@ -80,14 +75,11 @@ def fetch_all_children(block_id):
 
 # ====================== 更新 Notion 状态 ======================
 def update_notion_status(page_id, new_status):
-    """同步成功后把 Status 从 Ready 改为 Published"""
     url = f"https://api.notion.com/v1/pages/{page_id}"
     payload = {
         "properties": {
             "Status": {
-                "select": {
-                    "name": new_status
-                }
+                "select": {"name": new_status}
             }
         }
     }
@@ -98,7 +90,6 @@ def update_notion_status(page_id, new_status):
             return True
         else:
             print(f"  ⚠️ 更新 Notion 状态失败: {response.status_code}")
-            print(response.text)
             return False
     except Exception as e:
         print(f"  ⚠️ 更新状态异常: {e}")
@@ -130,8 +121,8 @@ def download_image(img_url, page_id, block_id):
                     f.write(chunk)
             print(f"  ✅ 下载完成")
             return f"/assets/images/posts/{filename}"
-    except Exception as e:
-        print(f"  ⚠️ 下载异常")
+    except:
+        pass
     return None
 
 
@@ -197,18 +188,17 @@ def block_to_markdown(block, page_id, indent_level=0):
         if block.get('children'):
             return convert_children(block['children'], page_id, indent_level)
         return ''
-        
-# ====================== 主流程 ======================
+
+
+# ====================== 主流程（已修复删除逻辑） ======================
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # 查询 Status 为 Ready 的文章
+    # 只查询 Status = Ready 的文章
     query_payload = {
         "filter": {
             "property": "Status",
-            "select": {
-                "equals": "Ready"
-            }
+            "select": {"equals": "Ready"}
         }
     }
 
@@ -220,14 +210,12 @@ def main():
 
     if resp.status_code != 200:
         print(f"查询失败: {resp.status_code}")
-        print(resp.text)
         return
 
     pages = resp.json().get('results', [])
     print(f"找到 {len(pages)} 篇 Ready 状态的文章准备同步。\n")
 
-    valid_filenames = set()
-    success_count = 0
+    synced_filenames = set()   # 本次成功同步的文件
 
     for page in pages:
         page_id = page['id']
@@ -241,7 +229,7 @@ def main():
 
         print(f"正在同步: {title}")
 
-        # 获取日期
+        # 日期处理
         date_prop = props.get('Date', {}).get('date', {})
         if date_prop and date_prop.get('start'):
             start = date_prop['start']
@@ -279,19 +267,17 @@ author_profile: true
 
         print(f"✅ 已同步: {filename}")
 
-        # 同步成功后，更新 Notion 状态为 Published
-        if update_notion_status(page_id, "Published"):
-            success_count += 1
+        # 同步成功后更新 Notion 状态
+        update_notion_status(page_id, "Published")
 
-        valid_filenames.add(filename)
+        synced_filenames.add(filename)
 
-    # 删除本地不再需要的文件（可选）
-    for fname in os.listdir(OUTPUT_DIR):
-        if fname.endswith('.md') and fname not in valid_filenames:
-            os.remove(os.path.join(OUTPUT_DIR, fname))
-            print(f"🗑️ 删除失效文章: {fname}")
-
-    print(f"\n🎉 同步完成！成功处理 {success_count} 篇文章。")
+    # ==================== 关键修复 ====================
+    # 【重要】不再删除任何已存在的文章！
+    # 只打印本次同步了哪些文章
+    print(f"\n本次共成功同步 {len(synced_filenames)} 篇文章。")
+    print("已发布的文章不会被删除，保持在 Git 上。")
+    print("\n🎉 同步完成！")
 
 # ====================== 辅助函数 ======================
 def get_notion_tags(props):
