@@ -140,12 +140,64 @@ def convert_children(children, page_id, indent_level=0):
 
 
 def block_to_markdown(block, page_id, indent_level=0):
-    # ... 你的 block_to_markdown 函数保持不变 ...
-    # （为了节省篇幅，这里省略了你原来的 block_to_markdown 完整代码）
-    # 请把你提供的脚本中 block_to_markdown 函数完整粘贴到这里
-    pass   # ←←← 需要你把原来的 block_to_markdown 粘贴进来
+    block_type = block.get('type')
+    block_data = block.get(block_type, {}) if block_type else {}
+    rich_text = block_data.get('rich_text', []) if block_type in block else []
+    indent = ' ' * indent_level
 
+    if block_type == 'paragraph':
+        md_text = rich_text_to_markdown(rich_text)
+        return indent + md_text + '\n\n' if md_text.strip() else '\n'
 
+    elif block_type in ['heading_1', 'heading_2', 'heading_3']:
+        level = block_type[-1]
+        md_text = rich_text_to_markdown(rich_text)
+        return indent + '#' * int(level) + ' ' + md_text + '\n\n' if md_text.strip() else ''
+
+    elif block_type == 'bulleted_list_item':
+        line = indent + '- ' + rich_text_to_markdown(rich_text) + '\n'
+        if block.get('children'):
+            line += convert_children(block['children'], page_id, indent_level)
+        return line
+
+    elif block_type == 'numbered_list_item':
+        line = indent + '1. ' + rich_text_to_markdown(rich_text) + '\n'
+        if block.get('children'):
+            line += convert_children(block['children'], page_id, indent_level)
+        return line
+
+    elif block_type == 'quote':
+        md_text = rich_text_to_markdown(rich_text)
+        result = indent + '> ' + md_text + '\n'
+        if block.get('children'):
+            child = convert_children(block['children'], page_id, indent_level)
+            quoted = '\n'.join(['> ' + line if line.strip() else '' for line in child.split('\n')])
+            result += quoted + '\n'
+        return result + '\n'
+
+    elif block_type == 'divider':
+        return indent + '---\n\n'
+
+    elif block_type == 'image':
+        image_data = block.get('image', {})
+        img_url = image_data.get('external', {}).get('url') or image_data.get('file', {}).get('url')
+        if not img_url:
+            return ''
+        caption = rich_text_to_markdown(image_data.get('caption', []))
+        block_id = block.get('id', '')
+        img_ref = download_image(img_url, page_id, block_id)
+        return indent + f"![{caption}]({img_ref})\n\n" if img_ref else ''
+
+    # 其他类型保持简单处理
+    elif block_type in ['code', 'bookmark', 'to_do', 'table']:
+        # 这里你可以根据需要补充，当前先简单返回
+        return ''
+
+    else:
+        if block.get('children'):
+            return convert_children(block['children'], page_id, indent_level)
+        return ''
+        
 # ====================== 主流程 ======================
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
